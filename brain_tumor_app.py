@@ -34,13 +34,6 @@ h1, h2, h3 {
     color: #C9D1D9;
     margin-bottom: 25px;
 }
-.info-box {
-    background-color: #161B22;
-    padding: 15px;
-    border-radius: 12px;
-    border: 1px solid #30363D;
-    margin-bottom: 10px;
-}
 .result-box {
     background-color: #111827;
     padding: 18px;
@@ -76,10 +69,12 @@ st.sidebar.title("Project Info")
 st.sidebar.markdown("""
 **Model:** YOLOv8  
 **Task:** Brain Tumor Detection  
+
 **Classes:**
 - Glioma
 - Meningioma
 - Pituitary
+- No tumor
 """)
 
 st.sidebar.warning(
@@ -92,27 +87,16 @@ st.sidebar.warning(
 # -----------------------------
 @st.cache_resource
 def load_model():
-    runs_dir = Path("runs/detect")
+    model_path = Path("best.pt")
 
-    if not runs_dir.exists():
-        return None, "No training runs found. Train the model first."
+    if not model_path.exists():
+        return None, f"Model file not found: {model_path}"
 
-    train_dirs = sorted(
-        [p for p in runs_dir.iterdir() if p.is_dir() and p.name.startswith("train")],
-        key=lambda x: x.stat().st_mtime,
-        reverse=True,
-    )
-
-    if not train_dirs:
-        return None, "No train folders found in runs/detect."
-
-    for train_dir in train_dirs:
-        best_path = train_dir / "weights" / "best.pt"
-        if best_path.exists():
-            model = YOLO(str(best_path))
-            return model, f"Loaded model: {best_path}"
-
-    return None, "No best.pt found in any training run."
+    try:
+        model = YOLO(str(model_path))
+        return model, f"Loaded model: {model_path}"
+    except Exception as e:
+        return None, f"Error loading model: {e}"
 
 # -----------------------------
 # Prediction summary
@@ -133,10 +117,13 @@ def draw_prediction_summary(result, model):
     tumor_icons = {
         "glioma": "🧬",
         "meningioma": "🧠",
-        "pituitary": "⚡"
+        "pituitary": "⚡",
+        "no tumor": "✅",
+        "notumor": "✅",
+        "no_tumor": "✅"
     }
 
-    icon = tumor_icons.get(best_label.lower(), "🔬")
+    icon = tumor_icons.get(str(best_label).lower(), "🔬")
 
     st.markdown("<div class='result-box'>", unsafe_allow_html=True)
     st.success(f"{icon} Top Prediction: {best_label} ({best_conf:.3f})")
@@ -154,7 +141,6 @@ def draw_prediction_summary(result, model):
         })
 
     df = pd.DataFrame(rows)
-
     st.subheader("Detected Objects")
     st.dataframe(df, use_container_width=True)
 
@@ -166,7 +152,7 @@ model, status_msg = load_model()
 if model is None:
     st.error(status_msg)
 else:
-    st.info(status_msg)
+    st.success(status_msg)
 
 # -----------------------------
 # Inputs
@@ -205,7 +191,7 @@ if uploaded_file is not None and model is not None:
             source=temp_path,
             imgsz=640,
             conf=confidence,
-            device="cpu"   # change to 0 later if your GPU environment is fully working
+            device="cpu"
         )
 
         result = results[0]
@@ -217,6 +203,9 @@ if uploaded_file is not None and model is not None:
             st.image(plotted_rgb, use_container_width=True)
 
         draw_prediction_summary(result, model)
+
+    except Exception as e:
+        st.error(f"Prediction failed: {e}")
 
     finally:
         if os.path.exists(temp_path):

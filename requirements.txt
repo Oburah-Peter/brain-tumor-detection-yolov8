@@ -1,9 +1,7 @@
-ultralytics
 streamlit
-opencv-python
+ultralytics
+opencv-python-headless
+pillow
 numpy
 pandas
 matplotlib
-pillow
-grad-cam
-torch
